@@ -1,0 +1,20 @@
+﻿# Arquivos internos do Codex/local
+.agents/
+.codex/
+work/
+test.txt
+
+# Entregáveis locais / cópias para outras opções de deploy
+outputs/
+docs/
+
+# Sistema/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Dependências futuras
+node_modules/
+.env
+.env.local

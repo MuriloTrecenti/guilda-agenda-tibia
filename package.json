@@ -1,0 +1,12 @@
+﻿{
+  "name": "guilda-agenda-tibia",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Agenda semanal compartilhável para rotinas de Tibia.",
+  "scripts": {
+    "start": "python -m http.server 4173",
+    "check": "node --check app.js"
+  },
+  "keywords": ["tibia", "agenda", "guilda", "static-app"],
+  "license": "UNLICENSED"
+}
