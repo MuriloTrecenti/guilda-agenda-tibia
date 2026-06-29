@@ -1,30 +1,31 @@
-﻿# Configuração do Supabase
+# Supabase
 
-A versão online precisa de um banco central para todos verem as mesmas alterações.
+Este projeto usa Supabase para duas coisas:
 
-## Passo a passo
+1. **Auth**: login por e-mail e senha.
+2. **Database**: sincronizacao do estado compartilhado da agenda na tabela `guild_state`.
 
-1. Crie um projeto em https://supabase.com
-2. Abra **SQL Editor**.
-3. Rode o conteúdo de `database/supabase.sql`.
-4. Vá em **Project Settings > API**.
-5. Copie:
-   - Project URL
-   - anon public key
-6. No projeto, crie um arquivo `supabase-config.js` baseado em `supabase-config.example.js`:
+## Criar usuarios
 
-```js
-window.SUPABASE_CONFIG = {
-  url: 'https://SEU-PROJETO.supabase.co',
-  anonKey: 'SUA_ANON_PUBLIC_KEY'
-};
-```
+No painel do Supabase:
 
-7. Faça commit e push.
-8. A Vercel publica automaticamente.
+1. Abra o projeto.
+2. Va em **Authentication > Users**.
+3. Clique em **Add user**.
+4. Informe e-mail e senha de cada pessoa.
+5. Envie o e-mail e senha para o jogador.
 
-## Segurança
+Se o login nao funcionar por confirmacao de e-mail pendente, confira em **Authentication > Sign In / Providers > Email** se a confirmacao de e-mail esta adequada para o seu uso, ou crie usuarios ja confirmados pelo painel.
 
-Esta primeira integração sincroniza os dados, mas ainda usa uma política ampla para leitura/escrita do estado compartilhado. É boa para colocar o grupo funcionando rapidamente.
+## Policies obrigatorias
 
-A etapa seguinte recomendada é trocar o login local por Supabase Auth e restringir as policies por usuário autenticado.
+Rode o SQL de `database/supabase.sql` no **SQL Editor** do Supabase. Ele deixa a tabela acessivel apenas para usuarios autenticados.
+
+## Variaveis do frontend
+
+O arquivo `supabase-config.js` contem:
+
+- `url`: URL publica do projeto Supabase.
+- `anonKey`: chave publica/publishable.
+
+Nao coloque secret key/service role no frontend.

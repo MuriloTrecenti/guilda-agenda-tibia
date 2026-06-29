@@ -20,6 +20,8 @@ let pickerMode = 'bosses';
 let draft = { bosses: [], monsters: [], locations: [] };
 let tempBestiary = {};
 let supa = null;
+let authSession = null;
+let authUserEmail = '';
 let cloudReady = false;
 let applyingRemote = false;
 let saveTimer = null;
@@ -192,6 +194,7 @@ function render() {
   $('nav').innerHTML = DAYS.map((d, i) => `<button class="${i === day ? 'active' : ''}" onclick="day=${i};render()">${d}<small>${normalizeDay(t.days[i]).kind}</small></button>`).join('');
   $('templateSelect').innerHTML = state.templates.map(x => `<option value="${x.id}" ${x.id === t.id ? 'selected' : ''}>${x.name}</option>`).join('');
   $('player').innerHTML = state.players.length ? state.players.map(x => `<option ${x === state.current ? 'selected' : ''}>${x}</option>`).join('') : '<option>Sem jogadores</option>';
+  if ($('logout')) $('logout').hidden = !authSession;
   $('routineName').textContent = t.name;
   $('routineDesc').textContent = t.description;
   $('routineMode').textContent = modeLabel(t);
@@ -268,8 +271,13 @@ function wireEvents() {
   $('addPlayer').onclick = () => { state.players.push('Novo jogador'); $('membersDlg').close(); openMembers(); };
   $('addDrop').onclick = openDrop;
   $('editBestiary').onclick = openBestiary;
-  $('access').onclick = () => toast('Acesso real sera feito na proxima etapa com Supabase Auth.');
-  $('logout').onclick = () => toast('Login local removido neste deploy limpo.');
+  $('access').onclick = () => {
+    $('accessDlg').showModal();
+  };
+  $('logout').onclick = async () => {
+    if (!supa) return;
+    await supa.auth.signOut();
+  };
 }
 
 function openTemplate(t) {
@@ -353,11 +361,75 @@ $('bestiaryForm').onsubmit = e => { e.preventDefault(); state.bestiary[active().
 
 function cloudConfig() { return window.SUPABASE_CONFIG || {}; }
 function cloudEnabled() { const cfg = cloudConfig(); return !!(cfg.url && cfg.anonKey && window.supabase); }
-async function initCloud() {
-  if (!cloudEnabled()) { cloudReady = false; setSync('local', 'warn'); render(); return; }
-  try {
+function ensureSupabaseClient() {
+  if (!cloudEnabled()) return null;
+  if (!supa) {
     const cfg = cloudConfig();
     supa = window.supabase.createClient(cfg.url, cfg.anonKey);
+  }
+  return supa;
+}
+function showLogin(message = '') {
+  setSync('login necessario', 'warn');
+  $('loginHelp').textContent = message || 'Entre com o e-mail e senha liberados pelo administrador para carregar a agenda compartilhada.';
+  $('loginPass').value = '';
+  if (!$('loginDlg').open) $('loginDlg').showModal();
+  setTimeout(() => $('loginUser').focus(), 50);
+}
+async function initAuth() {
+  if (!ensureSupabaseClient()) {
+    cloudReady = false;
+    setSync('sem supabase', 'warn');
+    toast('Supabase nao configurado');
+    render();
+    return false;
+  }
+  $('loginDlg').addEventListener('cancel', event => event.preventDefault());
+  $('loginForm').onsubmit = async event => {
+    event.preventDefault();
+    const email = $('loginUser').value.trim();
+    const password = $('loginPass').value;
+    if (!email || !password) return toast('Informe e-mail e senha');
+    $('loginButton').disabled = true;
+    $('loginButton').textContent = 'Entrando...';
+    const { data, error } = await supa.auth.signInWithPassword({ email, password });
+    $('loginButton').disabled = false;
+    $('loginButton').textContent = 'Entrar';
+    if (error) {
+      console.error(error);
+      return showLogin('Login nao autorizado. Confira e-mail, senha e se o usuario foi criado no Supabase Auth.');
+    }
+    authSession = data.session;
+    authUserEmail = data.user?.email || email;
+    if ($('loginDlg').open) $('loginDlg').close();
+    toast('Bem-vindo, ' + authUserEmail);
+    await initCloud();
+  };
+  supa.auth.onAuthStateChange(async (event, session) => {
+    authSession = session;
+    authUserEmail = session?.user?.email || '';
+    if (event === 'SIGNED_OUT') {
+      cloudReady = false;
+      lastCloudJson = '';
+      render();
+      showLogin('Sessao encerrada. Entre novamente para acessar a agenda.');
+    }
+  });
+  const { data, error } = await supa.auth.getSession();
+  if (error) console.error(error);
+  authSession = data?.session || null;
+  authUserEmail = authSession?.user?.email || '';
+  if (!authSession) {
+    render();
+    showLogin();
+    return false;
+  }
+  return true;
+}
+async function initCloud() {
+  if (!ensureSupabaseClient()) { cloudReady = false; setSync('local', 'warn'); render(); return; }
+  if (!authSession) { cloudReady = false; showLogin(); render(); return; }
+  try {
     setSync('sincronizando', 'warn');
     const { data, error } = await supa.from('guild_state').select('data,updated_at').eq('id','main').maybeSingle();
     if (error) throw error;
@@ -397,4 +469,4 @@ async function pushCloud(force = false) {
 
 wireEvents();
 render();
-initCloud();
+initAuth().then(ok => { if (ok) initCloud(); });
