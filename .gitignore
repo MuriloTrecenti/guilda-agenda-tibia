@@ -1,4 +1,4 @@
-﻿# Arquivos internos do Codex/local
+# Arquivos internos do Codex/local
 .agents/
 .codex/
 work/
@@ -18,3 +18,5 @@ Thumbs.db
 node_modules/
 .env
 .env.local
+
+
