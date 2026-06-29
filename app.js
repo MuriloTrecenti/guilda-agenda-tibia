@@ -74,26 +74,29 @@ const makeDays = mode => DAYS.map((_, i) => {
 });
 
 const defaults = {
-  version: 5,
-  players: ['Murilo','Rafael','Bruno','Caio'],
-  current: 'Murilo',
-  activeTemplateId: 'bosses_item',
+  version: 6,
+  players: [],
+  current: '',
+  activeTemplateId: 'rotina_inicial',
   templates: [
     {
-      id: 'bosses_item',
+      id: 'rotina_inicial',
       mode: 'recorrente',
-      name: 'BOSSES DE ITEM',
-      description: 'Semana focada em bosses diarios e chances de drop raro.',
-      participants: ['Murilo','Rafael','Bruno','Caio'],
-      days: makeDays('boss')
-    },
-    {
-      id: 'gt_gd',
-      mode: 'recorrente',
-      name: 'GT / GD',
-      description: 'Rotina para focar Grave Danger e Forgotten Knowledge/GT conforme disponibilidade.',
-      participants: ['Murilo','Rafael','Bruno','Caio'],
-      days: makeDays('gt')
+      name: 'Nova rotina',
+      description: 'Configure a rotina da semana.',
+      participants: [],
+      days: DAYS.map(() => ({
+        kind: 'Livre',
+        title: 'A definir',
+        time: '21:00',
+        desc: '',
+        bosses: [],
+        monsters: [],
+        locations: [],
+        hunt: 'A definir',
+        refills: 0,
+        notes: ''
+      }))
     }
   ],
   attendance: {},
@@ -134,7 +137,7 @@ function migrate(data) {
   const migrated = {
     ...clone(defaults),
     ...data,
-    version: 5,
+    version: 6,
     players: Array.isArray(data.players) && data.players.length ? data.players : defaults.players,
     templates: Array.isArray(data.templates) && data.templates.length ? data.templates.map(normalizeTemplate) : clone(defaults.templates),
     attendance: data.attendance && typeof data.attendance === 'object' ? data.attendance : {},
@@ -188,7 +191,7 @@ function render() {
   const p = plan();
   $('nav').innerHTML = DAYS.map((d, i) => `<button class="${i === day ? 'active' : ''}" onclick="day=${i};render()">${d}<small>${normalizeDay(t.days[i]).kind}</small></button>`).join('');
   $('templateSelect').innerHTML = state.templates.map(x => `<option value="${x.id}" ${x.id === t.id ? 'selected' : ''}>${x.name}</option>`).join('');
-  $('player').innerHTML = state.players.map(x => `<option ${x === state.current ? 'selected' : ''}>${x}</option>`).join('');
+  $('player').innerHTML = state.players.length ? state.players.map(x => `<option ${x === state.current ? 'selected' : ''}>${x}</option>`).join('') : '<option>Sem jogadores</option>';
   $('routineName').textContent = t.name;
   $('routineDesc').textContent = t.description;
   $('routineMode').textContent = modeLabel(t);
@@ -342,7 +345,7 @@ window.toggleEntity = name => { const arr = draft[pickerMode]; draft[pickerMode]
 $('absenceForm').onsubmit = e => { e.preventDefault(); state.attendance[key()] = { reason: $('reason').value.trim() }; save(); render(); $('absenceDlg').close(); toast('Ausencia registrada'); };
 function openMembers() { $('editor').innerHTML = state.players.map((x,i) => `<div class="manual"><input value="${x}"><button class="btn red" type="button" onclick="state.players.splice(${i},1);openMembers()">x</button></div>`).join(''); $('membersDlg').showModal(); }
 $('membersForm').onsubmit = e => { e.preventDefault(); state.players = [...$('editor').querySelectorAll('input')].map(x => x.value.trim()).filter(Boolean); if (!state.players.includes(state.current)) state.current = state.players[0] || ''; active().participants = active().participants.filter(x => state.players.includes(x)); save(); render(); $('membersDlg').close(); toast('Grupo atualizado'); };
-function openDrop() { $('dropBy').innerHTML = active().participants.map(x => `<option>${x}</option>`).join(''); $('dropSource').value = plan().bosses[0] || plan().locations[0] || plan().hunt || ''; $('dropItem').value = ''; $('dropNote').value = ''; $('dropDlg').showModal(); }
+function openDrop() { $('dropBy').innerHTML = active().participants.length ? active().participants.map(x => `<option>${x}</option>`).join('') : '<option>Sem participante</option>'; $('dropSource').value = plan().bosses[0] || plan().locations[0] || plan().hunt || ''; $('dropItem').value = ''; $('dropNote').value = ''; $('dropDlg').showModal(); }
 $('dropForm').onsubmit = e => { e.preventDefault(); state.drops.push({ id: uid(), date: new Date().toISOString(), templateId: active().id, day, item: $('dropItem').value.trim(), by: $('dropBy').value, source: $('dropSource').value.trim(), note: $('dropNote').value.trim() }); save(); render(); $('dropDlg').close(); toast('Drop registrado'); };
 function openBestiary() { tempBestiary = clone(getBestiary()); const bosses = routineBosses(); $('bestiaryEditor').innerHTML = bosses.length ? active().participants.map(p => `<div class="bestiaryBlock"><h3>${p}</h3>${bosses.map(b => { const v = (tempBestiary[p] || {})[b] || 0; return `<div class="counter"><span>${b}</span><button type="button" onclick="bestiaryInc('${p.replaceAll("'", "\\'")}','${b.replaceAll("'", "\\'")}',-1)">-</button><output>${v}</output><button type="button" onclick="bestiaryInc('${p.replaceAll("'", "\\'")}','${b.replaceAll("'", "\\'")}',1)">+</button></div>`; }).join('')}</div>`).join('') : '<p class="sub">Adicione bosses nos dias da rotina para contar bostiary.</p>'; $('bestiaryDlg').showModal(); }
 window.bestiaryInc = (p,b,delta) => { tempBestiary[p] = tempBestiary[p] || {}; tempBestiary[p][b] = Math.max(0, (tempBestiary[p][b] || 0) + delta); [...bestiaryEditor.querySelectorAll('.bestiaryBlock')].forEach(block => { if (block.querySelector('h3')?.textContent !== p) return; [...block.querySelectorAll('.counter')].forEach(row => { if (row.children[0].textContent === b) row.querySelector('output').textContent = tempBestiary[p][b]; }); }); };
