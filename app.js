@@ -19,6 +19,7 @@ let editingDay = null;
 let pickerMode = 'bosses';
 let draft = { bosses: [], monsters: [], locations: [] };
 let tempBestiary = {};
+let bestiaryMode = 'bosses';
 let supa = null;
 let authSession = null;
 let authUserEmail = '';
@@ -76,7 +77,7 @@ const makeDays = mode => DAYS.map((_, i) => {
 });
 
 const defaults = {
-  version: 6,
+  version: 7,
   players: [],
   current: '',
   activeTemplateId: 'rotina_inicial',
@@ -103,7 +104,8 @@ const defaults = {
   ],
   attendance: {},
   drops: [],
-  bestiary: {}
+  bestiary: {},
+  creatureBestiary: {}
 };
 
 const clone = obj => structuredClone ? structuredClone(obj) : JSON.parse(JSON.stringify(obj));
@@ -139,12 +141,13 @@ function migrate(data) {
   const migrated = {
     ...clone(defaults),
     ...data,
-    version: 6,
+    version: 7,
     players: Array.isArray(data.players) && data.players.length ? data.players : defaults.players,
     templates: Array.isArray(data.templates) && data.templates.length ? data.templates.map(normalizeTemplate) : clone(defaults.templates),
     attendance: data.attendance && typeof data.attendance === 'object' ? data.attendance : {},
     drops: Array.isArray(data.drops) ? data.drops : [],
-    bestiary: data.bestiary && typeof data.bestiary === 'object' ? data.bestiary : {}
+    bestiary: data.bestiary && typeof data.bestiary === 'object' ? data.bestiary : {},
+    creatureBestiary: data.creatureBestiary && typeof data.creatureBestiary === 'object' ? data.creatureBestiary : {}
   };
   if (!migrated.templates.some(t => t.id === migrated.activeTemplateId)) migrated.activeTemplateId = migrated.templates[0].id;
   if (!migrated.players.includes(migrated.current)) migrated.current = migrated.players[0] || '';
@@ -222,6 +225,7 @@ function render() {
   }).join('') || '<p class="sub">Nenhum participante definido.</p>';
   renderDrops();
   renderBestiary();
+  renderCreatureBestiary();
   renderStats();
 }
 
@@ -232,12 +236,22 @@ function renderDrops() {
 }
 
 function routineBosses() { return [...new Set(active().days.flatMap(d => normalizeDay(d).bosses))]; }
-function getBestiary() { const raw = state.bestiary[active().id] || {}; return Object.values(raw)[0] && typeof Object.values(raw)[0] === 'object' ? raw : {}; }
-function renderBestiary() {
-  const map = getBestiary();
-  const bosses = routineBosses();
-  $('bestiary').innerHTML = active().participants.map(p => `<div class="bestiary"><b>${p}</b><span>${bosses.length ? bosses.map(b => `${b}: ${(map[p] || {})[b] || 0}`).join(' | ') : 'Adicione bosses na rotina para contar.'}</span></div>`).join('') || '<p class="sub">Defina participantes para registrar o bostiary.</p>';
+function routineMonsters() { return [...new Set(active().days.flatMap(d => normalizeDay(d).monsters))]; }
+function getBestiary(type = 'bosses') {
+  const store = type === 'monsters' ? state.creatureBestiary : state.bestiary;
+  const raw = store?.[active().id] || {};
+  return Object.values(raw)[0] && typeof Object.values(raw)[0] === 'object' ? raw : {};
 }
+function renderCounterSummary(targetId, type) {
+  const map = getBestiary(type);
+  const items = type === 'monsters' ? routineMonsters() : routineBosses();
+  const emptyItem = type === 'monsters' ? 'Adicione monstros/criaturas na rotina para contar.' : 'Adicione bosses na rotina para contar.';
+  const emptyPlayers = type === 'monsters' ? 'Defina participantes para registrar o bestiary.' : 'Defina participantes para registrar o bostiary.';
+  $(targetId).innerHTML = active().participants.map(p => `<div class="bestiary"><b>${p}</b><span>${items.length ? items.map(b => `${b}: ${(map[p] || {})[b] || 0}`).join(' | ') : emptyItem}</span></div>`).join('') || `<p class="sub">${emptyPlayers}</p>`;
+}
+function renderBestiary() { renderCounterSummary('bestiary', 'bosses'); }
+function renderCreatureBestiary() { if ($('creatureBestiary')) renderCounterSummary('creatureBestiary', 'monsters'); }
+
 function renderStats() {
   const t = active();
   const drops = state.drops.filter(d => d.templateId === t.id);
@@ -270,7 +284,8 @@ function wireEvents() {
   $('manage').onclick = openMembers;
   $('addPlayer').onclick = () => { state.players.push('Novo jogador'); $('membersDlg').close(); openMembers(); };
   $('addDrop').onclick = openDrop;
-  $('editBestiary').onclick = openBestiary;
+  $('editBestiary').onclick = () => openBestiary('bosses');
+  if ($('editCreatureBestiary')) $('editCreatureBestiary').onclick = () => openBestiary('monsters');
   $('access').onclick = () => {
     $('accessDlg').showModal();
   };
@@ -327,17 +342,24 @@ function openDayEditor() {
   editingDay = day;
   draft = { bosses: [...p.bosses], monsters: [...p.monsters], locations: [...p.locations] };
   $('fKind').value = p.kind; $('fTitle').value = p.title; $('fTime').value = p.time; $('fDesc').value = p.desc; $('fHunt').value = p.hunt; $('fNotes').value = p.notes; $('fRefills').value = p.refills;
-  renderDraft(); $('routineDlg').showModal();
+  renderDraft(); renderCopyDays(); $('routineDlg').showModal();
 }
 function renderDraft() {
   $('draftBosses').innerHTML = draft.bosses.map(x => `<span class="chip">${x}</span>`).join('') || '<span class="chip">Nenhum</span>';
   $('draftMonsters').innerHTML = draft.monsters.map(x => `<span class="chip">${x}</span>`).join('') || '<span class="chip">Nenhum</span>';
   $('draftLocations').innerHTML = draft.locations.map(x => `<span class="chip">${x}</span>`).join('') || '<span class="chip">Nenhum</span>';
 }
+function renderCopyDays() {
+  if (!$('copyDays')) return;
+  $('copyDays').innerHTML = DAYS.map((d, i) => i === editingDay ? '' : `<label class="copyday"><input type="checkbox" value="${i}"> ${d}</label>`).join('');
+}
 $('routineForm').onsubmit = e => {
   e.preventDefault();
-  active().days[editingDay] = { kind: $('fKind').value, title: $('fTitle').value, time: $('fTime').value, desc: $('fDesc').value, hunt: $('fHunt').value || draft.locations[0] || 'A definir', notes: $('fNotes').value, refills: +$('fRefills').value, bosses: [...draft.bosses], monsters: [...draft.monsters], locations: [...draft.locations] };
-  save(); render(); $('routineDlg').close(); toast('Dia salvo');
+  const dayPlan = { kind: $('fKind').value, title: $('fTitle').value, time: $('fTime').value, desc: $('fDesc').value, hunt: $('fHunt').value || draft.locations[0] || 'A definir', notes: $('fNotes').value, refills: +$('fRefills').value, bosses: [...draft.bosses], monsters: [...draft.monsters], locations: [...draft.locations] };
+  const selectedDays = [...($('copyDays')?.querySelectorAll('input:checked') || [])].map(x => Number(x.value));
+  active().days[editingDay] = clone(dayPlan);
+  selectedDays.forEach(i => { active().days[i] = clone(dayPlan); });
+  save(); render(); $('routineDlg').close(); toast(selectedDays.length ? `Dia salvo e copiado para ${selectedDays.length} dia(s)` : 'Dia salvo');
 };
 
 function listForMode() { return pickerMode === 'bosses' ? BOSSES : pickerMode === 'monsters' ? CREATURES : HUNTS.map(name => ({ name })); }
@@ -355,9 +377,28 @@ function openMembers() { $('editor').innerHTML = state.players.map((x,i) => `<di
 $('membersForm').onsubmit = e => { e.preventDefault(); state.players = [...$('editor').querySelectorAll('input')].map(x => x.value.trim()).filter(Boolean); if (!state.players.includes(state.current)) state.current = state.players[0] || ''; active().participants = active().participants.filter(x => state.players.includes(x)); save(); render(); $('membersDlg').close(); toast('Grupo atualizado'); };
 function openDrop() { $('dropBy').innerHTML = active().participants.length ? active().participants.map(x => `<option>${x}</option>`).join('') : '<option>Sem participante</option>'; $('dropSource').value = plan().bosses[0] || plan().locations[0] || plan().hunt || ''; $('dropItem').value = ''; $('dropNote').value = ''; $('dropDlg').showModal(); }
 $('dropForm').onsubmit = e => { e.preventDefault(); state.drops.push({ id: uid(), date: new Date().toISOString(), templateId: active().id, day, item: $('dropItem').value.trim(), by: $('dropBy').value, source: $('dropSource').value.trim(), note: $('dropNote').value.trim() }); save(); render(); $('dropDlg').close(); toast('Drop registrado'); };
-function openBestiary() { tempBestiary = clone(getBestiary()); const bosses = routineBosses(); $('bestiaryEditor').innerHTML = bosses.length ? active().participants.map(p => `<div class="bestiaryBlock"><h3>${p}</h3>${bosses.map(b => { const v = (tempBestiary[p] || {})[b] || 0; return `<div class="counter"><span>${b}</span><button type="button" onclick="bestiaryInc('${p.replaceAll("'", "\\'")}','${b.replaceAll("'", "\\'")}',-1)">-</button><output>${v}</output><button type="button" onclick="bestiaryInc('${p.replaceAll("'", "\\'")}','${b.replaceAll("'", "\\'")}',1)">+</button></div>`; }).join('')}</div>`).join('') : '<p class="sub">Adicione bosses nos dias da rotina para contar bostiary.</p>'; $('bestiaryDlg').showModal(); }
+function openBestiary(type = 'bosses') {
+  bestiaryMode = type;
+  tempBestiary = clone(getBestiary(type));
+  const items = type === 'monsters' ? routineMonsters() : routineBosses();
+  const label = type === 'monsters' ? 'BESTIARY DE MONSTROS' : 'BOSTIARY';
+  const title = type === 'monsters' ? 'Contador por monstro e jogador' : 'Contador por boss e jogador';
+  const help = type === 'monsters' ? 'Use - e + para ajustar quantas vezes cada pessoa ja matou cada monstro/criatura da rotina ativa.' : 'Use - e + para ajustar quantas vezes cada pessoa ja matou cada boss da rotina ativa.';
+  if ($('bestiaryLabel')) $('bestiaryLabel').textContent = label;
+  if ($('bestiaryTitle')) $('bestiaryTitle').textContent = title;
+  if ($('bestiaryHelp')) $('bestiaryHelp').textContent = help;
+  const empty = type === 'monsters' ? 'Adicione monstros/criaturas nos dias da rotina para contar bestiary.' : 'Adicione bosses nos dias da rotina para contar bostiary.';
+  $('bestiaryEditor').innerHTML = items.length ? active().participants.map(p => `<div class="bestiaryBlock"><h3>${p}</h3>${items.map(b => { const v = (tempBestiary[p] || {})[b] || 0; return `<div class="counter"><span>${b}</span><button type="button" onclick="bestiaryInc('${p.replaceAll("'", "\\'")}','${b.replaceAll("'", "\\'")}',-1)">-</button><output>${v}</output><button type="button" onclick="bestiaryInc('${p.replaceAll("'", "\\'")}','${b.replaceAll("'", "\\'")}',1)">+</button></div>`; }).join('')}</div>`).join('') : `<p class="sub">${empty}</p>`;
+  $('bestiaryDlg').showModal();
+}
 window.bestiaryInc = (p,b,delta) => { tempBestiary[p] = tempBestiary[p] || {}; tempBestiary[p][b] = Math.max(0, (tempBestiary[p][b] || 0) + delta); [...bestiaryEditor.querySelectorAll('.bestiaryBlock')].forEach(block => { if (block.querySelector('h3')?.textContent !== p) return; [...block.querySelectorAll('.counter')].forEach(row => { if (row.children[0].textContent === b) row.querySelector('output').textContent = tempBestiary[p][b]; }); }); };
-$('bestiaryForm').onsubmit = e => { e.preventDefault(); state.bestiary[active().id] = tempBestiary; save(); render(); $('bestiaryDlg').close(); toast('Bostiary salvo'); };
+$('bestiaryForm').onsubmit = e => {
+  e.preventDefault();
+  const store = bestiaryMode === 'monsters' ? state.creatureBestiary : state.bestiary;
+  store[active().id] = tempBestiary;
+  save(); render(); $('bestiaryDlg').close();
+  toast(bestiaryMode === 'monsters' ? 'Bestiary de monstros salvo' : 'Bostiary salvo');
+};
 
 function cloudConfig() { return window.SUPABASE_CONFIG || {}; }
 function cloudEnabled() { const cfg = cloudConfig(); return !!(cfg.url && cfg.anonKey && window.supabase); }
