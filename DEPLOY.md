@@ -4,30 +4,9 @@ Este app é estático: `index.html`, `app.js` e `catalogs.js`. Para o fluxo GitH
 
 ## Fluxo recomendado: GitHub + Vercel
 
-### 1. Criar repositório no GitHub
-
-Crie um repositório no GitHub, por exemplo:
-
-```text
-guilda-agenda-tibia
-```
-
-Pode ser privado ou público. Privado é uma boa escolha enquanto vocês ainda estão ajustando o app.
-
-### 2. Conectar este projeto ao GitHub
-
-Depois de criar o repositório vazio, rode na raiz deste projeto:
-
-```bash
-git remote add origin https://github.com/SEU_USUARIO/guilda-agenda-tibia.git
-git push -u origin main
-```
-
-### 3. Importar na Vercel
-
 1. Acesse https://vercel.com/new
 2. Escolha **Import Git Repository**.
-3. Selecione `guilda-agenda-tibia`.
+3. Selecione `MuriloTrecenti/guilda-agenda-tibia`.
 4. Framework Preset: **Other**.
 5. Build Command: deixe vazio.
 6. Output Directory: deixe vazio.
@@ -37,7 +16,7 @@ A Vercel vai servir o `index.html` da raiz.
 
 ## Como atualizar depois
 
-Sempre que eu fizer alterações aqui:
+Sempre que houver alterações:
 
 ```bash
 git add .
@@ -60,6 +39,14 @@ Depois abra:
 http://localhost:4173
 ```
 
-## Observação importante
+## Sobre gestão de acessos
 
-O app ainda salva dados no navegador via `localStorage` e compartilha uma cópia pelo link. Para várias pessoas editarem a mesma agenda em tempo real, o próximo passo é adicionar backend, como Supabase ou Firebase.
+A versão atual tem um fluxo inicial de login/admin salvo no navegador. Ele serve para validar usabilidade, mas não é segurança real para produção porque o app ainda é estático e roda no cliente.
+
+Para autenticação real antes de liberar para mais pessoas, use uma destas opções:
+
+- Supabase Auth: recomendado para evoluir também para banco compartilhado de rotinas, drops e presença.
+- Firebase Auth + Firestore.
+- API própria no Vercel com banco externo.
+
+Quando essa etapa for escolhida, o app deve parar de salvar usuários/senhas no `localStorage` e passar a autenticar no backend.
